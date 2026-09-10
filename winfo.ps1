@@ -4,7 +4,7 @@ param(
 )
 
 $ErrorActionPreference = 'SilentlyContinue'
-$script:Version = '0.5.2'
+$script:Version = '0.5.3'
 $script:RepoRaw = 'https://raw.githubusercontent.com/hydrargyrum13/winfo/main'
 $script:InstallDir = Join-Path $env:LOCALAPPDATA 'winfo'
 $script:UpdateCache = Join-Path $script:InstallDir 'update-check.json'
@@ -364,7 +364,12 @@ function Start-WinfoShell {
         Write-Host 'winfo' -ForegroundColor Cyan -NoNewline; Write-Host ' › ' -ForegroundColor DarkGray -NoNewline
         $line=Read-Host; if($null-eq$line){break}; $line=$line.Trim(); if(-not$line){continue}
         if($line.ToLower()-in@('exit','quit','q')){break}; if($line.ToLower()-in@('clear','cls')){Clear-Host;Show-Banner;continue}
-        $tokens=[regex]::Matches($line,'(?:[^\s"]+|"[^"]*")+')|ForEach-Object{$_.Value.Trim('"')}; Invoke-WinfoCommand @($tokens)
+        [string[]]$tokens=[regex]::Matches($line,'(?:[^\s"]+|"[^"]*")+')|ForEach-Object{$_.Value.Trim('"')}
+        if($tokens.Count -and $tokens[0].ToLower() -eq 'winfo') {
+            $tokens = @($tokens | Select-Object -Skip 1)
+            if(-not $tokens.Count){continue}
+        }
+        Invoke-WinfoCommand $tokens
     }
 }
 

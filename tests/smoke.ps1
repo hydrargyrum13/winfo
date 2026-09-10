@@ -38,4 +38,9 @@ foreach ($command in @('summary', 'battery health', 'temps providers', 'network'
 $unknown = & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $mainScript __smoke_unknown__ | Out-String
 if ($unknown -notmatch 'Unknown command') { throw 'Unknown commands do not produce a useful error.' }
 
+$interactive = "winfo version`nq" | & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $mainScript | Out-String
+if ($interactive -notmatch "winfo $([regex]::Escape($expectedVersion))") {
+    throw 'Interactive mode does not accept a command prefixed with winfo.'
+}
+
 Write-Host 'winfo smoke tests passed.' -ForegroundColor Green
