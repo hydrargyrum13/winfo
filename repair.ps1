@@ -25,9 +25,11 @@ try {
         throw ('Downloaded winfo.ps1 failed PowerShell syntax validation: ' + (($errors | ForEach-Object Message) -join '; '))
     }
 
-    foreach ($name in @('winfo.ps1','winfo.cmd','update.ps1','VERSION')) {
+    Copy-Item (Join-Path $tmp 'winfo.ps1') (Join-Path $installDir 'winfo-core.ps1') -Force
+    foreach ($name in @('winfo.cmd','update.ps1','VERSION')) {
         Copy-Item (Join-Path $tmp $name) (Join-Path $installDir $name) -Force
     }
+    Remove-Item (Join-Path $installDir 'winfo.ps1') -Force -ErrorAction SilentlyContinue
 
     $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
     $parts = @($userPath -split ';' | Where-Object { $_ })

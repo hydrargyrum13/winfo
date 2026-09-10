@@ -4,7 +4,7 @@ param(
 )
 
 $ErrorActionPreference = 'SilentlyContinue'
-$script:Version = '0.5.3'
+$script:Version = '0.5.4'
 $script:RepoRaw = 'https://raw.githubusercontent.com/hydrargyrum13/winfo/main'
 $script:InstallDir = Join-Path $env:LOCALAPPDATA 'winfo'
 $script:UpdateCache = Join-Path $script:InstallDir 'update-check.json'
@@ -162,11 +162,12 @@ function Show-TemperatureSensors([string]$Category) {
 # ---------------- Self-update ----------------
 
 function Get-RemoteVersion {
+    $script:UpdateError = $null
     try {
         $text = (Invoke-WebRequest -UseBasicParsing -Uri "$script:RepoRaw/winfo.ps1" -TimeoutSec 5).Content
         $m = [regex]::Match($text, "\$script:Version\s*=\s*'([^']+)'")
         if ($m.Success) { return $m.Groups[1].Value }
-    } catch {}
+    } catch { $script:UpdateError = $_.Exception.Message }
     return $null
 }
 function Save-UpdateCache([string]$RemoteVersion) {
@@ -193,7 +194,11 @@ function Show-UpdateNotice {
 }
 function Invoke-WinfoUpdate([string[]]$Rest) {
     $status = Test-WinfoUpdate -Force
-    if (-not $status) { Write-Bad 'Could not check for updates.'; return }
+    if (-not $status) {
+        Write-Bad 'Could not check for updates.'
+        if($script:UpdateError){Write-Muted $script:UpdateError}
+        return
+    }
     if ($Rest.Count -and $Rest[0].ToLower() -eq 'check') {
         if ($status.Available) { Write-Warn "Update available: v$($status.Current) -> v$($status.Latest)"; Write-Muted 'Run: winfo update' } else { Write-Good "winfo is up to date (v$script:Version)." }
         return
@@ -204,8 +209,9 @@ function Invoke-WinfoUpdate([string[]]$Rest) {
         $tmpPs1 = Join-Path $env:TEMP 'winfo-update.ps1'; $tmpCmd = Join-Path $env:TEMP 'winfo-update.cmd'
         Invoke-WebRequest -UseBasicParsing "$script:RepoRaw/winfo.ps1" -OutFile $tmpPs1 -TimeoutSec 15
         Invoke-WebRequest -UseBasicParsing "$script:RepoRaw/winfo.cmd" -OutFile $tmpCmd -TimeoutSec 15
-        Copy-Item $tmpPs1 (Join-Path $script:InstallDir 'winfo.ps1') -Force
+        Copy-Item $tmpPs1 (Join-Path $script:InstallDir 'winfo-core.ps1') -Force
         Copy-Item $tmpCmd (Join-Path $script:InstallDir 'winfo.cmd') -Force
+        Remove-Item (Join-Path $script:InstallDir 'winfo.ps1') -Force -ErrorAction SilentlyContinue
         Save-UpdateCache $status.Latest
         Write-Good "Updated to winfo v$($status.Latest)."
     } catch { Write-Bad "Update failed: $($_.Exception.Message)" }

@@ -10,12 +10,16 @@ foreach ($name in @('winfo.ps1', 'winfo.cmd', 'update.ps1', 'VERSION')) {
     }
 }
 
+$launcher = Get-Content (Join-Path $repoRoot 'winfo.cmd') -Raw
+if ($launcher -notmatch 'winfo-core\.ps1') { throw 'Launcher does not use the UTF-8-safe internal script name.' }
+
 $installer = Get-Content (Join-Path $repoRoot 'install.ps1') -Raw
 foreach ($name in @('winfo.ps1', 'winfo.cmd', 'update.ps1', 'VERSION')) {
     if ($installer -notmatch [regex]::Escape("'$name'")) {
         throw "Installer does not include distribution file: $name"
     }
 }
+if ($installer -notmatch 'winfo-core\.ps1') { throw 'Installer does not create the internal core script.' }
 
 foreach ($name in @('winfo.ps1', 'install.ps1', 'update.ps1', 'repair.ps1')) {
     $tokens = $null

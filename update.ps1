@@ -13,7 +13,8 @@ function Get-InstalledVersion {
     if (Test-Path $versionFile) {
         try { return (Get-Content $versionFile -Raw).Trim() } catch {}
     }
-    $ps1 = Join-Path $installDir 'winfo.ps1'
+    $ps1 = Join-Path $installDir 'winfo-core.ps1'
+    if (-not (Test-Path $ps1)) { $ps1 = Join-Path $installDir 'winfo.ps1' }
     if (Test-Path $ps1) {
         try {
             $text = [IO.File]::ReadAllText($ps1, [Text.Encoding]::UTF8)
@@ -104,9 +105,11 @@ try {
         throw ('Downloaded winfo.ps1 failed parser validation: ' + (($errors | ForEach-Object Message) -join '; '))
     }
 
-    foreach ($name in @('winfo.ps1','winfo.cmd','update.ps1','VERSION')) {
+    Copy-Item (Join-Path $tmp 'winfo.ps1') (Join-Path $installDir 'winfo-core.ps1') -Force
+    foreach ($name in @('winfo.cmd','update.ps1','VERSION')) {
         Copy-Item (Join-Path $tmp $name) (Join-Path $installDir $name) -Force
     }
+    Remove-Item (Join-Path $installDir 'winfo.ps1') -Force -ErrorAction SilentlyContinue
     Remove-Item $cacheFile -Force -ErrorAction SilentlyContinue
     Write-Host "Updated to v$latest." -ForegroundColor Green
 } finally {
