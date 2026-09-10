@@ -4,25 +4,9 @@ A fast, dependency-free Windows information shell built with native PowerShell.
 
 `winfo` collects useful hardware, software, network, security, driver, storage, process, service, update and environment information in one place, with short commands and a terminal-first interface.
 
-## Why
-
-Windows exposes a huge amount of useful system information, but scatters it across Settings, Task Manager, Device Manager, PowerShell cmdlets, registry keys and third-party utilities.
-
-winfo gives those things one small command surface.
-
-## Requirements
-
-- Windows 10 or Windows 11
-- Windows PowerShell 5.1+ or PowerShell 7+
-- No Python
-- No package manager
-- No runtime installation
-
-Some sensor values, especially CPU temperature, are not exposed reliably by Windows itself. For those, winfo can read sensor data from LibreHardwareMonitor or OpenHardwareMonitor when one is already running.
-
 ## Quick install
 
-Open PowerShell and paste this single command:
+Open PowerShell and paste:
 
 ```powershell
 git clone https://github.com/hydrargyrum13/winfo.git "$env:TEMP\winfo"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\winfo\install.ps1"
@@ -36,33 +20,17 @@ winfo
 
 ### Without Git
 
-If Git is not installed, use this PowerShell-only command:
-
 ```powershell
 $p="$env:TEMP\winfo.zip"; $d="$env:TEMP\winfo-main"; Invoke-WebRequest https://github.com/hydrargyrum13/winfo/archive/refs/heads/main.zip -OutFile $p; Remove-Item $d -Recurse -Force -ErrorAction SilentlyContinue; Expand-Archive $p -DestinationPath $env:TEMP -Force; powershell -ExecutionPolicy Bypass -File "$d\install.ps1"
 ```
 
 Both methods install winfo to `%LOCALAPPDATA%\winfo` and add it to your user PATH.
 
-## Manual install
-
-Clone the repository, then run:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1
-```
-
-Open a new terminal afterwards.
-
 ## Interactive shell
-
-Run:
 
 ```text
 winfo
 ```
-
-You will enter the winfo shell:
 
 ```text
  __        _____ _   _ _____ ___
@@ -74,25 +42,19 @@ You will enter the winfo shell:
   Windows information, without the scavenger hunt.
 
 winfo › cpu
-winfo › disk
-winfo › software firefox
-winfo › network
+winfo › temps
+winfo › wifi
+winfo › health
 winfo › help
 ```
 
-Use `exit`, `quit` or `q` to leave.
-
-## Direct commands
-
-Direct commands skip the banner and print only the requested information:
+Direct commands skip the banner:
 
 ```text
-winfo cpu
 winfo cpu temp
-winfo gpu
-winfo ram
-winfo disk
-winfo os
+winfo health
+winfo display
+winfo publicip
 ```
 
 ## Commands
@@ -100,44 +62,68 @@ winfo os
 | Command | Description |
 | --- | --- |
 | `winfo summary` | Compact system overview |
-| `winfo cpu` | CPU model, core/thread count, clocks and virtualization |
-| `winfo cpu temp` | CPU sensor temperatures when a compatible provider exists |
-| `winfo gpu` | GPU model, driver, VRAM and current display mode |
-| `winfo ram` | Installed memory, usage and DIMM information |
-| `winfo disk` | Physical drives, media type, bus, health and volume usage |
-| `winfo os` | Windows edition, version, build, install date and uptime |
+| `winfo health` | Quick health overview: memory, disks, reboot state, CPU temperature |
+| `winfo temps` | All temperatures exposed by a compatible sensor provider |
+| `winfo cpu` | CPU model, cores, threads, clocks and virtualization |
+| `winfo cpu temp` | CPU temperature sensors |
+| `winfo gpu` | Graphics adapters, driver and display mode |
+| `winfo ram` | Memory usage and DIMM information |
+| `winfo disk` | Physical disks, health and volume usage |
+| `winfo os` | Windows edition, version, build and uptime |
 | `winfo board` | Motherboard information |
-| `winfo bios` | BIOS/UEFI and Secure Boot information |
-| `winfo battery` | Laptop battery state |
-| `winfo network` | Active network adapters, addresses, MAC and link speed |
+| `winfo bios` | BIOS/UEFI and Secure Boot |
+| `winfo battery` | Laptop battery status |
+| `winfo display` | Display adapters and detected monitors |
+| `winfo wifi` | Current Wi-Fi connection, signal, channel and link rates |
+| `winfo usb` | Connected USB devices |
+| `winfo audio` | Audio devices |
+| `winfo devices [query]` | List or search Plug and Play devices |
+| `winfo dx` | DirectX registry version and graphics driver information |
+| `winfo network` | Active network adapters and addresses |
 | `winfo network ip` | IPv4 addresses only |
+| `winfo dns` | Configured IPv4 DNS servers |
+| `winfo publicip` | Current public IP address |
+| `winfo ping [host]` | Four-packet latency test; defaults to `1.1.1.1` |
 | `winfo ports` | Listening TCP ports and owning processes |
 | `winfo processes [n]` | Top processes by accumulated CPU time |
 | `winfo services [query]` | List or search Windows services |
 | `winfo startup` | Startup applications |
-| `winfo software [query]` | List or search installed desktop software |
+| `winfo software [query]` | List or search installed software |
 | `winfo drivers [query]` | List or search signed drivers |
 | `winfo updates` | Recently installed Windows updates |
+| `winfo power` | Active power plan and available sleep states |
+| `winfo firewall` | Windows Firewall profile state |
+| `winfo tpm` | TPM status |
+| `winfo virtualization` | Hypervisor and Windows virtualization feature status |
 | `winfo env` | Environment variables |
 | `winfo env path` | PATH entries |
-| `winfo tpm` | TPM status |
-| `winfo virtualization` | Hypervisor, virtualization and optional Windows features |
-| `winfo doctor` | Check which winfo data providers are available |
+| `winfo uptime` | Uptime only |
+| `winfo doctor` | Check which winfo providers/APIs are available |
 | `winfo help` | Command reference |
 
-Aliases include `memory`, `storage`, `system`, `motherboard`, `net`, `ps`, `apps` and `virt`.
+Useful aliases include `temp`, `memory`, `storage`, `system`, `motherboard`, `monitor`, `net`, `ps`, `apps`, `device`, `directx` and `virt`.
 
-## CPU temperature
+## Temperature support
 
-Windows does not provide a dependable universal API for modern CPU package/core temperatures. winfo therefore does not fake or guess this value.
+Windows does not expose a dependable universal API for modern CPU/package temperatures. winfo does not guess them.
 
-If LibreHardwareMonitor or OpenHardwareMonitor exposes its WMI/CIM sensor namespace, this works:
+If LibreHardwareMonitor or OpenHardwareMonitor exposes its WMI/CIM namespace, these work:
 
 ```text
 winfo cpu temp
+winfo temps
+winfo health
 ```
 
-Without a provider, winfo explains that temperature data is unavailable instead of returning nonsense.
+Without a compatible provider, winfo reports that the sensor is unavailable.
+
+## Requirements
+
+- Windows 10 or Windows 11
+- Windows PowerShell 5.1+ or PowerShell 7+
+- No Python
+- No package manager
+- No required runtime installation
 
 ## Design principles
 
