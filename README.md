@@ -20,7 +20,31 @@ winfo gives those things one small command surface.
 
 Some sensor values, especially CPU temperature, are not exposed reliably by Windows itself. For those, winfo can read sensor data from LibreHardwareMonitor or OpenHardwareMonitor when one is already running.
 
-## Install
+## Quick install
+
+Open PowerShell and paste this single command:
+
+```powershell
+git clone https://github.com/hydrargyrum13/winfo.git "$env:TEMP\winfo"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\winfo\install.ps1"
+```
+
+Then open a new terminal and run:
+
+```text
+winfo
+```
+
+### Without Git
+
+If Git is not installed, use this PowerShell-only command:
+
+```powershell
+$p="$env:TEMP\winfo.zip"; $d="$env:TEMP\winfo-main"; Invoke-WebRequest https://github.com/hydrargyrum13/winfo/archive/refs/heads/main.zip -OutFile $p; Remove-Item $d -Recurse -Force -ErrorAction SilentlyContinue; Expand-Archive $p -DestinationPath $env:TEMP -Force; powershell -ExecutionPolicy Bypass -File "$d\install.ps1"
+```
+
+Both methods install winfo to `%LOCALAPPDATA%\winfo` and add it to your user PATH.
+
+## Manual install
 
 Clone the repository, then run:
 
