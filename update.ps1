@@ -6,6 +6,7 @@ $ErrorActionPreference = 'Stop'
 $repoRaw = 'https://raw.githubusercontent.com/hydrargyrum13/winfo/main'
 $installDir = Join-Path $env:LOCALAPPDATA 'winfo'
 $versionFile = Join-Path $installDir 'VERSION'
+$cacheFile = Join-Path $installDir 'update-check.json'
 
 function Get-InstalledVersion {
     if (Test-Path $versionFile) {
@@ -22,11 +23,44 @@ function Get-InstalledVersion {
     return 'unknown'
 }
 
-function Get-LatestVersion {
-    return ((Invoke-WebRequest -UseBasicParsing -Uri "$repoRaw/VERSION" -TimeoutSec 10).Content).Trim()
+function Get-LatestVersion([switch]$UseCache) {
+    if ($UseCache -and (Test-Path $cacheFile)) {
+        try {
+            $cache = Get-Content $cacheFile -Raw | ConvertFrom-Json
+            $checked = [datetime]::Parse($cache.checked)
+            if (((Get-Date).ToUniversalTime() - $checked.ToUniversalTime()).TotalHours -lt 24) {
+                return [string]$cache.version
+            }
+        } catch {}
+    }
+
+    $latest = ((Invoke-WebRequest -UseBasicParsing -Uri "$repoRaw/VERSION" -TimeoutSec 10).Content).Trim()
+    try {
+        [pscustomobject]@{
+            checked = (Get-Date).ToUniversalTime().ToString('o')
+            version = $latest
+        } | ConvertTo-Json | Set-Content -Path $cacheFile -Encoding UTF8
+    } catch {}
+    return $latest
 }
 
 $current = Get-InstalledVersion
+
+if ($Mode -eq 'version') {
+    Write-Output "winfo $current"
+    exit 0
+}
+
+if ($Mode -eq 'notice') {
+    try {
+        $latest = Get-LatestVersion -UseCache
+        if ($current -ne 'unknown' -and [version]$latest -gt [version]$current) {
+            Write-Host "Update available: v$current -> v$latest. Run: winfo update" -ForegroundColor Yellow
+        }
+    } catch {}
+    exit 0
+}
+
 $latest = Get-LatestVersion
 
 if ($Mode -eq 'check') {
@@ -68,6 +102,7 @@ try {
     foreach ($name in @('winfo.ps1','winfo.cmd','update.ps1','VERSION')) {
         Copy-Item (Join-Path $tmp $name) (Join-Path $installDir $name) -Force
     }
+    Remove-Item $cacheFile -Force -ErrorAction SilentlyContinue
     Write-Host "Updated to v$latest." -ForegroundColor Green
 } finally {
     Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
