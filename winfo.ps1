@@ -4,7 +4,7 @@ param(
 )
 
 $ErrorActionPreference = 'SilentlyContinue'
-$script:Version = '0.5.4'
+$script:Version = '0.5.5'
 $script:RepoRaw = 'https://raw.githubusercontent.com/hydrargyrum13/winfo/main'
 $script:InstallDir = Join-Path $env:LOCALAPPDATA 'winfo'
 $script:UpdateCache = Join-Path $script:InstallDir 'update-check.json'
@@ -165,7 +165,7 @@ function Get-RemoteVersion {
     $script:UpdateError = $null
     try {
         $text = (Invoke-WebRequest -UseBasicParsing -Uri "$script:RepoRaw/winfo.ps1" -TimeoutSec 5).Content
-        $m = [regex]::Match($text, "\$script:Version\s*=\s*'([^']+)'")
+        $m = [regex]::Match($text, '\$script:Version\s*=\s*''([^'']+)''')
         if ($m.Success) { return $m.Groups[1].Value }
     } catch { $script:UpdateError = $_.Exception.Message }
     return $null

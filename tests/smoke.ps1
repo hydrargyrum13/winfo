@@ -34,6 +34,13 @@ if ($reportedVersion -ne "winfo $expectedVersion") {
     throw "Version mismatch: VERSION=$expectedVersion, winfo.ps1='$reportedVersion'"
 }
 
+$sampleSource = "`$script:Version = '9.8.7'"
+$versionPattern = '\$script:Version\s*=\s*''([^'']+)'''
+$versionMatch = [regex]::Match($sampleSource, $versionPattern)
+if (-not $versionMatch.Success -or $versionMatch.Groups[1].Value -ne '9.8.7') {
+    throw 'Remote version pattern cannot parse winfo.ps1.'
+}
+
 $help = & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $mainScript help | Out-String
 foreach ($command in @('summary', 'battery health', 'temps providers', 'network', 'doctor')) {
     if ($help -notmatch [regex]::Escape($command)) { throw "Help is missing command: $command" }
