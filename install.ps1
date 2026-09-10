@@ -10,8 +10,9 @@ if (-not (Test-Path $installDir)) {
     New-Item -ItemType Directory -Path $installDir | Out-Null
 }
 
-Copy-Item (Join-Path $repoRoot 'winfo.ps1') (Join-Path $installDir 'winfo.ps1') -Force
-Copy-Item (Join-Path $repoRoot 'winfo.cmd') (Join-Path $installDir 'winfo.cmd') -Force
+foreach ($name in @('winfo.ps1', 'winfo.cmd', 'update.ps1', 'VERSION')) {
+    Copy-Item (Join-Path $repoRoot $name) (Join-Path $installDir $name) -Force
+}
 
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 $parts = @($userPath -split ';' | Where-Object { $_ })

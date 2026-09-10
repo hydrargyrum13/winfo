@@ -3,6 +3,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRaw = 'https://raw.githubusercontent.com/hydrargyrum13/winfo/main'
 $installDir = Join-Path $env:LOCALAPPDATA 'winfo'
 $versionFile = Join-Path $installDir 'VERSION'
@@ -19,6 +20,10 @@ function Get-InstalledVersion {
             $m = [regex]::Match($text, "(?m)^\$script:Version\s*=\s*'([^']+)'\s*$")
             if ($m.Success) { return $m.Groups[1].Value }
         } catch {}
+    }
+    $localVersionFile = Join-Path $scriptRoot 'VERSION'
+    if (Test-Path $localVersionFile) {
+        try { return (Get-Content $localVersionFile -Raw).Trim() } catch {}
     }
     return 'unknown'
 }

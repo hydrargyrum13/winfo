@@ -4,7 +4,7 @@ param(
 )
 
 $ErrorActionPreference = 'SilentlyContinue'
-$script:Version = '0.5.0'
+$script:Version = '0.5.2'
 $script:RepoRaw = 'https://raw.githubusercontent.com/hydrargyrum13/winfo/main'
 $script:InstallDir = Join-Path $env:LOCALAPPDATA 'winfo'
 $script:UpdateCache = Join-Path $script:InstallDir 'update-check.json'
@@ -98,7 +98,7 @@ function Get-StorageSensors {
     try {
         foreach ($disk in Get-PhysicalDisk) {
             try {
-                $r = $disk | Get-StorageReliabilityCounter
+                $r = $disk | Get-StorageReliabilityCounter -ErrorAction Stop
                 if ($null -ne $r.Temperature -and [double]$r.Temperature -gt 0 -and [double]$r.Temperature -lt 150) {
                     $out += [pscustomobject]@{ Name = "$($disk.FriendlyName) temperature"; Category='Disk'; Type='Temperature'; Value=[double]$r.Temperature; Source='Windows Storage' }
                 }
@@ -251,8 +251,9 @@ function Show-Temps {
 }
 function Show-SensorProviders {
     Write-Header 'Temperature providers'
-    Write-KV 'LibreHardwareMonitor' $(if((Get-MonitorSensors|Where-Object Source-eq'LibreHardwareMonitor')){'Available'}else{'Unavailable'})
-    Write-KV 'OpenHardwareMonitor' $(if((Get-MonitorSensors|Where-Object Source-eq'OpenHardwareMonitor')){'Available'}else{'Unavailable'})
+    $monitorSensors = @(Get-MonitorSensors)
+    Write-KV 'LibreHardwareMonitor' $(if($monitorSensors | Where-Object { $_.Source -eq 'LibreHardwareMonitor' }){'Available'}else{'Unavailable'})
+    Write-KV 'OpenHardwareMonitor' $(if($monitorSensors | Where-Object { $_.Source -eq 'OpenHardwareMonitor' }){'Available'}else{'Unavailable'})
     Write-KV 'NVIDIA SMI' $(if((Get-NvidiaSensors).Count){'Available'}else{'Unavailable'})
     Write-KV 'Windows Storage' $(if((Get-StorageSensors).Count){'Available'}else{'Unavailable'})
     Write-KV 'ACPI thermal zones' $(if((Get-AcpiThermalSensors).Count){'Available'}else{'Unavailable'})
@@ -260,9 +261,32 @@ function Show-SensorProviders {
 function Show-OS { $o=Get-OSInfo;Write-Header 'Windows';Write-KV 'Edition' $o.Caption;Write-KV 'Version' $o.Version;Write-KV 'Build' $o.BuildNumber;Write-KV 'Architecture' $o.OSArchitecture;Write-KV 'Hostname' $env:COMPUTERNAME;Write-KV 'Uptime' (Format-Uptime $o.LastBootUpTime) }
 function Show-Board { $b=Get-Board;Write-Header 'Motherboard';Write-KV 'Manufacturer' $b.Manufacturer;Write-KV 'Product' $b.Product;Write-KV 'Version' $b.Version;Write-KV 'Serial' $b.SerialNumber }
 function Show-BIOS { $b=Get-BIOSInfo;Write-Header 'BIOS / UEFI';Write-KV 'Vendor' $b.Manufacturer;Write-KV 'Version' $b.SMBIOSBIOSVersion;Write-KV 'Release date' $b.ReleaseDate;try{Write-KV 'Secure Boot' $(if(Confirm-SecureBootUEFI){'Enabled'}else{'Disabled'})}catch{Write-KV 'Secure Boot' 'Unavailable'} }
-function Show-Battery([string[]]$Rest) { $b=Get-CimInstance Win32_Battery;if(-not$b){Write-Warn 'No battery detected.';return};Write-Header 'Battery';Write-KV 'Charge' "$($b.EstimatedChargeRemaining)%";Write-KV 'Status' $b.Status }
+function Show-Battery([string[]]$Rest) {
+    $b = Get-CimInstance Win32_Battery | Select-Object -First 1
+    if(-not $b){Write-Warn 'No battery detected.';return}
+    if($Rest.Count -and $Rest[0].ToLower() -eq 'health') {
+        Write-Header 'Battery health'
+        $design = Get-CimInstance -Namespace 'root/wmi' -ClassName BatteryStaticData | Select-Object -First 1
+        $full = Get-CimInstance -Namespace 'root/wmi' -ClassName BatteryFullChargedCapacity | Select-Object -First 1
+        if($design.DesignCapacity -and $full.FullChargedCapacity) {
+            Write-KV 'Design capacity' "$($design.DesignCapacity) mWh"
+            Write-KV 'Full charge' "$($full.FullChargedCapacity) mWh"
+            Write-KV 'Health' ('{0:N1}%' -f (100 * [double]$full.FullChargedCapacity / [double]$design.DesignCapacity))
+        } else {
+            Write-Warn 'Battery health data is unavailable from Windows.'
+        }
+        return
+    }
+    Write-Header 'Battery';Write-KV 'Charge' "$($b.EstimatedChargeRemaining)%";Write-KV 'Status' $b.Status
+}
 function Show-Display { Get-CimInstance Win32_VideoController|Select-Object Name,DriverVersion,CurrentHorizontalResolution,CurrentVerticalResolution,CurrentRefreshRate|Format-Table -AutoSize }
-function Show-Wifi([string[]]$Rest) { $txt=netsh wlan show interfaces;if($Rest.Count -and $Rest[0].ToLower()-eq'signal'){$txt|Where-Object{$_-match'^\s*(SSID|Signal|Receive rate|Transmit rate|Channel)\s*:'}}else{$txt} }
+function Show-Wifi([string[]]$Rest) {
+    $txt = @(netsh wlan show interfaces)
+    if($Rest.Count -and $Rest[0].ToLower() -eq 'signal') {
+        $details = @($txt | Where-Object { $_ -match '^\s*(SSID|Signal|Receive rate|Transmit rate|Channel)\s*:' })
+        if($details.Count) { $details } else { Write-Warn (($txt | Where-Object { $_.Trim() } | Select-Object -Skip 1) -join ' ') }
+    } else { $txt }
+}
 function Show-USB { Get-PnpDevice -PresentOnly|Where-Object{$_.InstanceId-like'USB*'-or$_.Class-eq'USB'}|Select-Object Status,Class,FriendlyName|Format-Table -AutoSize }
 function Show-Audio { Get-CimInstance Win32_SoundDevice|Select-Object Name,Manufacturer,Status|Format-Table -AutoSize }
 function Show-Devices([string[]]$Rest) { $q=if($Rest.Count){($Rest-join' ').ToLower()}else{''};$x=Get-PnpDevice -PresentOnly;if($q){$x=$x|Where-Object{([string]$_.FriendlyName).ToLower().Contains($q)-or([string]$_.Class).ToLower().Contains($q)}};$x|Select-Object Status,Class,FriendlyName|Format-Table -AutoSize }
@@ -270,7 +294,7 @@ function Show-DX { $d=Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\DirectX';Write-
 function Show-DNS { Get-DnsClientServerAddress -AddressFamily IPv4|Where-Object{$_.ServerAddresses.Count-gt0}|Select-Object InterfaceAlias,ServerAddresses|Format-Table -AutoSize }
 function Show-PublicIP { try{(Invoke-RestMethod 'https://api.ipify.org?format=text' -TimeoutSec 5).Trim()}catch{Write-Warn 'Could not reach public IP service.'} }
 function Show-Ports { Get-NetTCPConnection -State Listen|Sort-Object LocalPort -Unique|Select-Object LocalAddress,LocalPort,OwningProcess,@{N='Process';E={(Get-Process -Id $_.OwningProcess).ProcessName}}|Format-Table -AutoSize }
-function Show-Network([string[]]$Rest) { $s=if($Rest.Count){$Rest[0].ToLower()}else{''};if($s-eq'ip'){Get-NetIPAddress -AddressFamily IPv4|Where-Object{$_.IPAddress-notlike'169.254*'}|Select-Object InterfaceAlias,IPAddress,PrefixLength|Format-Table -AutoSize;return};if($s-eq'dns'){Show-DNS;return};if($s-eq'public'){Show-PublicIP;return};if($s-eq'ports'){Show-Ports;return};Get-NetAdapter|Where-Object Status-eq'Up'|Format-Table Name,InterfaceDescription,LinkSpeed,MacAddress -AutoSize }
+function Show-Network([string[]]$Rest) { $s=if($Rest.Count){$Rest[0].ToLower()}else{''};if($s-eq'ip'){Get-NetIPAddress -AddressFamily IPv4|Where-Object{$_.IPAddress-notlike'169.254*'}|Select-Object InterfaceAlias,IPAddress,PrefixLength|Format-Table -AutoSize;return};if($s-eq'dns'){Show-DNS;return};if($s-eq'public'){Show-PublicIP;return};if($s-eq'ports'){Show-Ports;return};Get-NetAdapter|Where-Object{$_.Status -eq 'Up'}|Format-Table Name,InterfaceDescription,LinkSpeed,MacAddress -AutoSize }
 function Show-Ping([string[]]$Rest) { $target=if($Rest.Count){$Rest[0]}else{'1.1.1.1'};Test-Connection $target -Count 4 }
 function Show-Processes([string[]]$Rest) { $n=15;if($Rest.Count -and $Rest[0]-as[int]){$n=[int]$Rest[0]};Get-Process|Sort-Object CPU -Descending|Select-Object -First $n Id,ProcessName,@{N='CPU(s)';E={[math]::Round($_.CPU,1)}},@{N='RAM(MB)';E={[math]::Round($_.WorkingSet64/1MB,1)}}|Format-Table -AutoSize }
 function Show-Services([string[]]$Rest) { $f=if($Rest.Count){$Rest-join' '}else{''};$x=Get-Service;if($f){$x=$x|Where-Object{$_.Name-like"*$f*"-or$_.DisplayName-like"*$f*"}};$x|Format-Table Status,Name,DisplayName -AutoSize }
@@ -295,7 +319,7 @@ function Show-Help {
         @('cpu','CPU details'), @('cpu temp','CPU temperature with fallbacks'), @('cpu load','CPU load'), @('cpu clock','CPU clocks'),
         @('gpu','GPU details'), @('gpu temp','GPU temperature with fallbacks'), @('gpu load','GPU load'), @('gpu vram','VRAM information'),
         @('ram','Memory usage'), @('ram modules','DIMM details'), @('disk','Storage overview'), @('disk health','Disk health'), @('disk temp','Disk temperatures'), @('disk usage','Volume usage'),
-        @('battery','Battery'), @('display','Displays'), @('wifi','Wi-Fi'), @('wifi signal','Wi-Fi signal'), @('network','Network'), @('network ip','IPv4'), @('network dns','DNS'), @('network public','Public IP'), @('network ports','Ports'),
+        @('battery','Battery'), @('battery health','Battery capacity health'), @('display','Displays'), @('wifi','Wi-Fi'), @('wifi signal','Wi-Fi signal'), @('network','Network'), @('network ip','IPv4'), @('network dns','DNS'), @('network public','Public IP'), @('network ports','Ports'),
         @('os','Windows'), @('board','Motherboard'), @('bios','BIOS/UEFI'), @('usb','USB'), @('audio','Audio'), @('devices [query]','PnP devices'), @('dx','DirectX'),
         @('processes [n]','Processes'), @('services [query]','Services'), @('startup','Startup apps'), @('software [query]','Software'), @('drivers [query]','Drivers'), @('updates','Windows updates'),
         @('update','Update winfo'), @('update check','Check for winfo update'), @('ping [host]','Ping'), @('power','Power'), @('firewall','Firewall'), @('tpm','TPM'), @('virtualization','Virtualization'), @('env','Environment'), @('uptime','Uptime'), @('doctor','Provider diagnostics'), @('help','Help')
@@ -308,7 +332,7 @@ function Show-Help {
 
 function Invoke-WinfoCommand([string[]]$Tokens) {
     if (-not $Tokens -or $Tokens.Count -eq 0) { Show-Summary; return }
-    $cmd=$Tokens[0].ToLower(); $rest=if($Tokens.Count -gt 1){@($Tokens[1..($Tokens.Count-1)])}else{@()}
+    $cmd=$Tokens[0].ToLower(); [string[]]$rest=if($Tokens.Count -gt 1){@($Tokens[1..($Tokens.Count-1)])}else{@()}
     switch($cmd) {
         'summary'{Show-Summary}; 'health'{Show-Health}; 'temps'{if($rest.Count -and $rest[0].ToLower()-eq'providers'){Show-SensorProviders}else{Show-Temps}}; 'temp'{Show-Temps}
         'cpu'{Show-CPU $rest}; 'gpu'{Show-GPU $rest}; 'ram'{Show-RAM $rest}; 'memory'{Show-RAM $rest}; 'disk'{Show-Disk $rest}; 'storage'{Show-Disk $rest}
