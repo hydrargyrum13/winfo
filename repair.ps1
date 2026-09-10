@@ -10,42 +10,43 @@ if (-not (Test-Path $installDir)) {
     New-Item -ItemType Directory -Path $installDir -Force | Out-Null
 }
 
-$tmpPs1 = Join-Path $env:TEMP 'winfo-repair.ps1'
-$tmpCmd = Join-Path $env:TEMP 'winfo-repair.cmd'
+$tmp = Join-Path $env:TEMP ('winfo-repair-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $tmp | Out-Null
 
-Invoke-WebRequest -UseBasicParsing -Uri "$repoRaw/winfo.ps1" -OutFile $tmpPs1
-Invoke-WebRequest -UseBasicParsing -Uri "$repoRaw/winfo.cmd" -OutFile $tmpCmd
+try {
+    foreach ($name in @('winfo.ps1','winfo.cmd','update.ps1','VERSION')) {
+        Invoke-WebRequest -UseBasicParsing -Uri "$repoRaw/$name" -OutFile (Join-Path $tmp $name) -TimeoutSec 15
+    }
 
-# Parse-check the downloaded script before replacing the installed copy.
-$tokens = $null
-$errors = $null
-[System.Management.Automation.Language.Parser]::ParseFile($tmpPs1, [ref]$tokens, [ref]$errors) | Out-Null
-if ($errors.Count -gt 0) {
-    $message = ($errors | ForEach-Object { $_.Message }) -join '; '
-    throw "Downloaded winfo.ps1 failed PowerShell syntax validation: $message"
+    $tokens = $null
+    $errors = $null
+    [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $tmp 'winfo.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
+    if ($errors.Count -gt 0) {
+        throw ('Downloaded winfo.ps1 failed PowerShell syntax validation: ' + (($errors | ForEach-Object Message) -join '; '))
+    }
+
+    foreach ($name in @('winfo.ps1','winfo.cmd','update.ps1','VERSION')) {
+        Copy-Item (Join-Path $tmp $name) (Join-Path $installDir $name) -Force
+    }
+
+    $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+    $parts = @($userPath -split ';' | Where-Object { $_ })
+    if ($parts -notcontains $installDir) {
+        [Environment]::SetEnvironmentVariable('Path', (($parts + $installDir) -join ';'), 'User')
+    }
+    if (($env:Path -split ';') -notcontains $installDir) {
+        $env:Path += ";$installDir"
+    }
+
+    Remove-Item (Join-Path $installDir 'update-check.json') -Force -ErrorAction SilentlyContinue
+
+    Write-Host 'winfo repaired successfully.' -ForegroundColor Green
+    & (Join-Path $installDir 'winfo.cmd') version
+    Write-Host ''
+    Write-Host 'Try:' -ForegroundColor Gray
+    Write-Host '  winfo' -ForegroundColor Cyan
+    Write-Host '  winfo update check' -ForegroundColor Cyan
+    Write-Host '  winfo temps providers' -ForegroundColor Cyan
+} finally {
+    Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
 }
-
-Copy-Item $tmpPs1 (Join-Path $installDir 'winfo.ps1') -Force
-Copy-Item $tmpCmd (Join-Path $installDir 'winfo.cmd') -Force
-
-$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-$parts = @($userPath -split ';' | Where-Object { $_ })
-if ($parts -notcontains $installDir) {
-    [Environment]::SetEnvironmentVariable('Path', (($parts + $installDir) -join ';'), 'User')
-}
-if (($env:Path -split ';') -notcontains $installDir) {
-    $env:Path += ";$installDir"
-}
-
-Remove-Item $tmpPs1,$tmpCmd -Force -ErrorAction SilentlyContinue
-
-Write-Host 'winfo repaired successfully.' -ForegroundColor Green
-Write-Host 'Testing parser and version...' -ForegroundColor DarkGray
-& (Join-Path $installDir 'winfo.cmd') version
-Write-Host ''
-Write-Host 'You can now run:' -ForegroundColor Gray
-Write-Host '  winfo' -ForegroundColor Cyan
-Write-Host '  winfo temps providers' -ForegroundColor Cyan
-Write-Host '  winfo cpu temp' -ForegroundColor Cyan
-Write-Host '  winfo gpu temp' -ForegroundColor Cyan
-Write-Host '  winfo disk temp' -ForegroundColor Cyan
