@@ -41,20 +41,43 @@ winfo
 
   Windows information, without the scavenger hunt.
 
-winfo › cpu
-winfo › temps
-winfo › wifi
-winfo › health
+winfo › cpu temp
+winfo › gpu temp
+winfo › disk health
+winfo › network dns
 winfo › help
 ```
 
-Direct commands skip the banner:
+Direct commands skip the banner.
+
+## Composite command style
+
+Most areas expose predictable subcommands:
 
 ```text
 winfo cpu temp
-winfo health
-winfo display
-winfo publicip
+winfo cpu load
+winfo cpu clock
+
+winfo gpu temp
+winfo gpu load
+winfo gpu vram
+
+winfo ram usage
+winfo ram modules
+
+winfo disk health
+winfo disk temp
+winfo disk usage
+
+winfo battery health
+
+winfo wifi signal
+
+winfo network ip
+winfo network dns
+winfo network public
+winfo network ports
 ```
 
 ## Commands
@@ -62,55 +85,72 @@ winfo publicip
 | Command | Description |
 | --- | --- |
 | `winfo summary` | Compact system overview |
-| `winfo health` | Quick health overview: memory, disks, reboot state, CPU temperature |
-| `winfo temps` | All temperatures exposed by a compatible sensor provider |
-| `winfo cpu` | CPU model, cores, threads, clocks and virtualization |
-| `winfo cpu temp` | CPU temperature sensors |
-| `winfo gpu` | Graphics adapters, driver and display mode |
-| `winfo ram` | Memory usage and DIMM information |
-| `winfo disk` | Physical disks, health and volume usage |
+| `winfo health` | Quick health overview |
+| `winfo temps` | All available temperature sensors |
+| `winfo cpu` | CPU overview |
+| `winfo cpu temp` | CPU temperatures |
+| `winfo cpu load` | Current CPU load |
+| `winfo cpu clock` | Current and maximum CPU clock |
+| `winfo gpu` | GPU overview |
+| `winfo gpu temp` | GPU temperatures |
+| `winfo gpu load` | GPU load sensors |
+| `winfo gpu vram` | Reported VRAM |
+| `winfo ram` | Memory overview |
+| `winfo ram usage` | Used, available and percentage memory |
+| `winfo ram modules` | Physical memory module information |
+| `winfo disk` | Storage overview |
+| `winfo disk health` | Physical disk health status |
+| `winfo disk temp` | Disk/NVMe temperatures when available |
+| `winfo disk usage` | Volume usage |
+| `winfo battery` | Battery status |
+| `winfo battery health` | Design capacity versus full-charge capacity |
+| `winfo display` | Display adapters and detected monitors |
+| `winfo wifi` | Current Wi-Fi connection |
+| `winfo wifi signal` | SSID, signal, channel and link rates |
+| `winfo network` | Active network adapters |
+| `winfo network ip` | IPv4 addresses |
+| `winfo network dns` | DNS servers |
+| `winfo network public` | Public IP address |
+| `winfo network ports` | Listening TCP ports |
 | `winfo os` | Windows edition, version, build and uptime |
 | `winfo board` | Motherboard information |
 | `winfo bios` | BIOS/UEFI and Secure Boot |
-| `winfo battery` | Laptop battery status |
-| `winfo display` | Display adapters and detected monitors |
-| `winfo wifi` | Current Wi-Fi connection, signal, channel and link rates |
 | `winfo usb` | Connected USB devices |
 | `winfo audio` | Audio devices |
 | `winfo devices [query]` | List or search Plug and Play devices |
-| `winfo dx` | DirectX registry version and graphics driver information |
-| `winfo network` | Active network adapters and addresses |
-| `winfo network ip` | IPv4 addresses only |
-| `winfo dns` | Configured IPv4 DNS servers |
-| `winfo publicip` | Current public IP address |
-| `winfo ping [host]` | Four-packet latency test; defaults to `1.1.1.1` |
-| `winfo ports` | Listening TCP ports and owning processes |
-| `winfo processes [n]` | Top processes by accumulated CPU time |
-| `winfo services [query]` | List or search Windows services |
+| `winfo dx` | DirectX/runtime and graphics driver information |
+| `winfo dns` | DNS servers shortcut |
+| `winfo publicip` | Public IP shortcut |
+| `winfo ping [host]` | Four-packet latency test |
+| `winfo ports` | Listening ports shortcut |
+| `winfo processes [n]` | Top processes by CPU time |
+| `winfo services [query]` | List or search services |
 | `winfo startup` | Startup applications |
-| `winfo software [query]` | List or search installed software |
-| `winfo drivers [query]` | List or search signed drivers |
-| `winfo updates` | Recently installed Windows updates |
-| `winfo power` | Active power plan and available sleep states |
-| `winfo firewall` | Windows Firewall profile state |
+| `winfo software [query]` | Installed software |
+| `winfo drivers [query]` | Installed drivers |
+| `winfo updates` | Recent Windows updates |
+| `winfo power` | Power plan and sleep states |
+| `winfo firewall` | Windows Firewall profiles |
 | `winfo tpm` | TPM status |
-| `winfo virtualization` | Hypervisor and Windows virtualization feature status |
+| `winfo virtualization` | Virtualization status |
 | `winfo env` | Environment variables |
 | `winfo env path` | PATH entries |
 | `winfo uptime` | Uptime only |
-| `winfo doctor` | Check which winfo providers/APIs are available |
+| `winfo doctor` | Check available APIs/providers |
 | `winfo help` | Command reference |
 
 Useful aliases include `temp`, `memory`, `storage`, `system`, `motherboard`, `monitor`, `net`, `ps`, `apps`, `device`, `directx` and `virt`.
 
 ## Temperature support
 
-Windows does not expose a dependable universal API for modern CPU/package temperatures. winfo does not guess them.
+Windows does not expose a dependable universal API for modern CPU, GPU and storage temperatures. winfo does not guess sensor values.
 
 If LibreHardwareMonitor or OpenHardwareMonitor exposes its WMI/CIM namespace, these work:
 
 ```text
 winfo cpu temp
+winfo gpu temp
+winfo disk temp
 winfo temps
 winfo health
 ```
@@ -128,6 +168,7 @@ Without a compatible provider, winfo reports that the sensor is unavailable.
 ## Design principles
 
 - Short commands
+- Predictable composite subcommands
 - Native Windows APIs first
 - No Python dependency
 - No mandatory third-party tools
